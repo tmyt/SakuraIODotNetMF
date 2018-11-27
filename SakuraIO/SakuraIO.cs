@@ -32,7 +32,7 @@ namespace SakuraIO
             return 0x00;
         }
 
-        protected byte ExecuteCommand(byte cmd, byte[] request, byte responseLength,
+        protected Error ExecuteCommand(Command cmd, byte[] request, byte responseLength,
             out byte[] response)
         {
             Debug.dbgln("executeCommand");
@@ -40,9 +40,9 @@ namespace SakuraIO
             Begin();
 
             // request
-            SendByte(cmd);
+            SendByte((byte)cmd);
             SendByte((byte)request.Length);
-            var parity = (byte)(cmd ^ (byte)request.Length);
+            var parity = (byte)((byte)cmd ^ (byte)request.Length);
             for (var i = 0; i < (byte)request.Length; i++)
             {
                 parity ^= request[i];
@@ -57,8 +57,8 @@ namespace SakuraIO
 
             // response
             StartReceive((byte)(reservedResponseLength + 3));
-            var result = ReceiveByte();
-            if (result != Commands.CMD_ERROR_NONE)
+            var result = (Error)ReceiveByte();
+            if (result != Error.None)
             {
                 Debug.dbgln("Invalid status");
                 End();
@@ -69,7 +69,7 @@ namespace SakuraIO
             var receivedResponseLength = ReceiveByte();
             response = new byte[receivedResponseLength];
 
-            parity = (byte)(result ^ receivedResponseLength);
+            parity = (byte)((byte)result ^ receivedResponseLength);
             for (var i = 0; i < receivedResponseLength; i++)
             {
                 var tmpResponse = ReceiveByte();
@@ -87,7 +87,7 @@ namespace SakuraIO
             Debug.dbgln(p.ToString());
             if (parity != 0x00)
             {
-                result = Commands.CMD_ERROR_PARITY;
+                result = Error.Parity;
                 Debug.dbgln("Invalid parity");
             }
             else
@@ -100,28 +100,28 @@ namespace SakuraIO
         }
 
 
-        protected byte ExecuteCommand(byte cmd)
+        protected Error ExecuteCommand(Command cmd)
         {
             return ExecuteCommand(cmd, new byte[] { });
         }
 
-        protected byte ExecuteCommand(byte cmd, byte request)
+        protected Error ExecuteCommand(Command cmd, byte request)
         {
             return ExecuteCommand(cmd, new[] {request});
         }
 
-        protected byte ExecuteCommand(byte cmd, byte[] request)
+        protected Error ExecuteCommand(Command cmd, byte[] request)
         {
             byte[] response;
             return ExecuteCommand(cmd, request, 0, out response);
         }
 
-        protected byte ExecuteCommand(byte cmd, byte responseLength, out byte[] response)
+        protected Error ExecuteCommand(Command cmd, byte responseLength, out byte[] response)
         {
             return ExecuteCommand(cmd, new byte[] { }, responseLength, out response);
         }
 
-        protected byte ExecuteTxCommand(byte cmd, byte ch, char type, byte[] data, ulong offset)
+        protected Error ExecuteTxCommand(Command cmd, byte ch, char type, byte[] data, ulong offset)
         {
             byte[] request = new byte[10];
             request[0] = ch;
@@ -138,11 +138,11 @@ namespace SakuraIO
             return ExecuteCommand(cmd, request);
         }
 
-        protected byte ExecuteRxCommand(byte cmd, out byte ch, out char type, out byte[] value, out ulong offset)
+        protected Error ExecuteRxCommand(Command cmd, out byte ch, out char type, out byte[] value, out ulong offset)
         {
             byte[] response;
-            byte ret = ExecuteCommand(cmd, 18, out response);
-            if (ret != Commands.CMD_ERROR_NONE)
+            var ret = ExecuteCommand(cmd, 18, out response);
+            if (ret != Error.None)
             {
                 ch = 0;
                 type = ' ';
@@ -164,7 +164,7 @@ namespace SakuraIO
         public byte GetConnectionStatus()
         {
             byte[] response;
-            if (ExecuteCommand(Commands.CMD_GET_CONNECTION_STATUS, 1, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.GetConnectionStatus, 1, out response) != Error.None)
             {
                 return 0x7F;
             }
@@ -183,7 +183,7 @@ namespace SakuraIO
 
         {
             byte[] response;
-            if (ExecuteCommand(Commands.CMD_GET_SIGNAL_QUALITY, 1, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.GetSignalQuality, 1, out response) != Error.None)
             {
                 return 0x00;
             }
@@ -194,7 +194,7 @@ namespace SakuraIO
         public ulong GetUnixtime()
         {
             byte[] response;
-            if (ExecuteCommand(Commands.CMD_GET_DATETIME, 8, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.GetDatetime, 8, out response) != Error.None)
             {
                 return 0x00;
             }
@@ -204,8 +204,8 @@ namespace SakuraIO
 
         public byte Echoback(byte[] data, out byte[] response)
         {
-            if (ExecuteCommand(Commands.CMD_ECHO_BACK, data, (byte)data.Length, out response) !=
-                Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.EchoBack, data, (byte)data.Length, out response) !=
+                Error.None)
             {
                 return 0x00;
             }
@@ -218,10 +218,10 @@ namespace SakuraIO
         #region IO Commands
 
         [Obsolete]
-        public ushort GetADC(byte channel)
+        public ushort GetAdc(byte channel)
         {
             byte[] request = {channel}, response;
-            if (ExecuteCommand(Commands.CMD_READ_ADC, request, 2, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.ReadAdc, request, 2, out response) != Error.None)
             {
                 return 0xffff;
             }
@@ -233,249 +233,249 @@ namespace SakuraIO
 
         #region TX Commands
 
-        protected byte EnqueueTxRaw(byte ch, char type, byte[] data, ulong offset)
+        protected Error EnqueueTxRaw(byte ch, char type, byte[] data, ulong offset)
         {
-            return ExecuteTxCommand(Commands.CMD_TX_ENQUEUE, ch, type, data, offset);
+            return ExecuteTxCommand(Command.TxEnqueue, ch, type, data, offset);
         }
 
-        public byte EnqueueTx(byte ch, int value, ulong offset)
+        public Error EnqueueTx(byte ch, int value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'i', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, uint value, ulong offset)
+        public Error EnqueueTx(byte ch, uint value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'I', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, long value, ulong offset)
+        public Error EnqueueTx(byte ch, long value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'l', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, ulong value, ulong offset)
+        public Error EnqueueTx(byte ch, ulong value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'L', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, float value, ulong offset)
+        public Error EnqueueTx(byte ch, float value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'f', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, double value, ulong offset)
+        public Error EnqueueTx(byte ch, double value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'd', BitConverter.GetBytes(value), offset);
         }
 
-        public byte EnqueueTx(byte ch, byte[] value, ulong offset)
+        public Error EnqueueTx(byte ch, byte[] value, ulong offset)
         {
             return EnqueueTxRaw(ch, 'b', value, offset);
         }
 
-        public byte EnqueueTx(byte ch, int value)
+        public Error EnqueueTx(byte ch, int value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, uint value)
+        public Error EnqueueTx(byte ch, uint value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, long value)
+        public Error EnqueueTx(byte ch, long value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, ulong value)
+        public Error EnqueueTx(byte ch, ulong value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, float value)
+        public Error EnqueueTx(byte ch, float value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, double value)
+        public Error EnqueueTx(byte ch, double value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        public byte EnqueueTx(byte ch, byte[] value)
+        public Error EnqueueTx(byte ch, byte[] value)
         {
             return EnqueueTx(ch, value, 0);
         }
 
-        protected byte SendImmediatelyRaw(byte ch, char type, byte[] data, ulong offset)
+        protected Error SendImmediatelyRaw(byte ch, char type, byte[] data, ulong offset)
         {
-            return ExecuteTxCommand(Commands.CMD_TX_SENDIMMED, ch, type, data, offset);
+            return ExecuteTxCommand(Command.TxSendImmediately, ch, type, data, offset);
         }
 
-        public byte SendImmediately(byte ch, int value, ulong offset)
+        public Error SendImmediately(byte ch, int value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'i', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, uint value, ulong offset)
+        public Error SendImmediately(byte ch, uint value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'I', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, long value, ulong offset)
+        public Error SendImmediately(byte ch, long value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'l', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, ulong value, ulong offset)
+        public Error SendImmediately(byte ch, ulong value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'L', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, float value, ulong offset)
+        public Error SendImmediately(byte ch, float value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'f', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, double value, ulong offset)
+        public Error SendImmediately(byte ch, double value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'd', BitConverter.GetBytes(value), offset);
         }
 
-        public byte SendImmediately(byte ch, byte[] value, ulong offset)
+        public Error SendImmediately(byte ch, byte[] value, ulong offset)
         {
             return SendImmediatelyRaw(ch, 'b', value, offset);
         }
 
-        public byte SendImmediately(byte ch, int value)
+        public Error SendImmediately(byte ch, int value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, uint value)
+        public Error SendImmediately(byte ch, uint value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, long value)
+        public Error SendImmediately(byte ch, long value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, ulong value)
+        public Error SendImmediately(byte ch, ulong value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, float value)
+        public Error SendImmediately(byte ch, float value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, double value)
+        public Error SendImmediately(byte ch, double value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte SendImmediately(byte ch, byte[] value)
+        public Error SendImmediately(byte ch, byte[] value)
         {
             return SendImmediately(ch, value, 0);
         }
 
-        public byte GetTxQueueLength(out byte available, out byte queued)
+        public Error GetTxQueueLength(out byte available, out byte queued)
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_TX_LENGTH, 2, out response);
+            var ret = ExecuteCommand(Command.TxLength, 2, out response);
             available = response[0];
             queued = response[1];
             return ret;
         }
 
-        public byte ClearTx()
+        public Error ClearTx()
         {
-            return ExecuteCommand(Commands.CMD_TX_CLEAR);
+            return ExecuteCommand(Command.TxClear);
         }
 
-        public byte GetTxStatus(out byte queue, out byte immediate)
+        public Error GetTxStatus(out byte queue, out byte immediate)
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_TX_STAT, 2, out response);
+            var ret = ExecuteCommand(Command.TxStat, 2, out response);
             queue = response[0];
             immediate = response[1];
             return ret;
         }
 
-        public byte Send()
+        public Error Send()
         {
-            return ExecuteCommand(Commands.CMD_TX_SEND);
+            return ExecuteCommand(Command.TxSend);
         }
 
         #endregion
 
         #region RX Commands
 
-        public byte DequeueRx(out byte ch, out char type, out byte[] value, out ulong offset)
+        public Error DequeueRx(out byte ch, out char type, out byte[] value, out ulong offset)
         {
-            return ExecuteRxCommand(Commands.CMD_RX_DEQUEUE, out ch, out type, out value, out offset);
+            return ExecuteRxCommand(Command.RxDequeue, out ch, out type, out value, out offset);
         }
 
-        public byte PeekRx(out byte ch, out char type, out byte[] value, out ulong offset)
+        public Error PeekRx(out byte ch, out char type, out byte[] value, out ulong offset)
         {
-            return ExecuteRxCommand(Commands.CMD_RX_PEEK, out ch, out type, out value, out offset);
+            return ExecuteRxCommand(Command.RxPeek, out ch, out type, out value, out offset);
         }
 
-        public byte GetRxQueueLength(out byte available, out byte queued)
+        public Error GetRxQueueLength(out byte available, out byte queued)
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_RX_LENGTH, 2, out response);
+            var ret = ExecuteCommand(Command.RxLength, 2, out response);
             available = response[0];
             queued = response[1];
             return ret;
         }
 
-        public byte ClearRx()
+        public Error ClearRx()
         {
-            return ExecuteCommand(Commands.CMD_RX_CLEAR);
+            return ExecuteCommand(Command.RxClear);
         }
 
         #endregion
 
         #region File command
 
-        public byte StartFileDownload(ushort fileId)
+        public Error StartFileDownload(ushort fileId)
         {
-            return ExecuteCommand(Commands.CMD_START_FILE_DOWNLOAD, BitConverter.GetBytes(fileId));
+            return ExecuteCommand(Command.StartFileDownload, BitConverter.GetBytes(fileId));
         }
 
-        public byte CancelFileDownload()
+        public Error CancelFileDownload()
         {
-            return ExecuteCommand(Commands.CMD_CANCEL_FILE_DOWNLOAD);
+            return ExecuteCommand(Command.CancelFileDownload);
         }
 
-        public byte GetFileMetaData(out byte status, out uint totalSize, out ulong timestamp, out uint crc)
+        public Error GetFileMetaData(out FileStatus status, out uint totalSize, out ulong timestamp, out uint crc)
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_GET_FILE_METADATA, 17, out response);
-            status = response[0];
+            var ret = ExecuteCommand(Command.GetFileMetadata, 17, out response);
+            status = (FileStatus)response[0];
             totalSize = BitConverter.ToUInt32(response, 1);
             timestamp = BitConverter.ToUInt64(response, 5);
             crc = BitConverter.ToUInt32(response, 13);
             return ret;
         }
 
-        public byte GetFileDownloadStatus(out byte status, out uint currentSize)
+        public Error GetFileDownloadStatus(out FileStatus status, out uint currentSize)
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_GET_FILE_DOWNLOAD_STATUS, 5, out response);
-            status = response[0];
+            var ret = ExecuteCommand(Command.GetFileDownloadStatus, 5, out response);
+            status = (FileStatus)response[0];
             currentSize = BitConverter.ToUInt32(response, 1);
             return ret;
         }
 
-        public byte GetFileData(byte size, out byte[] data)
+        public Error GetFileData(byte size, out byte[] data)
         {
-            var ret = ExecuteCommand(Commands.CMD_GET_FILE_DATA, new[] {size}, size, out data);
+            var ret = ExecuteCommand(Command.GetFileData, new[] {size}, size, out data);
             return ret;
         }
 
@@ -483,11 +483,11 @@ namespace SakuraIO
 
         #region Operation command
 
-        public ushort GetProductID()
+        public ushort GetProductId()
         {
             byte[] response;
-            var ret = ExecuteCommand(Commands.CMD_GET_PRODUCT_ID, 2, out response);
-            if (ret != Commands.CMD_ERROR_NONE)
+            var ret = ExecuteCommand(Command.GetProductId, 2, out response);
+            if (ret != Error.None)
             {
                 return 0x00;
             }
@@ -495,11 +495,11 @@ namespace SakuraIO
             return BitConverter.ToUInt16(response, 0);
         }
 
-        public byte GetUniqueID(out string data)
+        public Error GetUniqueId(out string data)
         {
             byte[] response;
-            byte ret = ExecuteCommand(Commands.CMD_GET_UNIQUE_ID, 10, out response);
-            if (ret != Commands.CMD_ERROR_NONE)
+            var ret = ExecuteCommand(Command.GetUniqueId, 10, out response);
+            if (ret != Error.None)
             {
                 data = "";
                 return ret;
@@ -509,11 +509,11 @@ namespace SakuraIO
             return ret;
         }
 
-        public byte GetFirmwareVersion(out string data)
+        public Error GetFirmwareVersion(out string data)
         {
             byte[] response;
-            byte ret = ExecuteCommand(Commands.CMD_GET_FIRMWARE_VERSION, 32, out response);
-            if (ret != Commands.CMD_ERROR_NONE)
+            var ret = ExecuteCommand(Command.GetFirmwareVersion, 32, out response);
+            if (ret != Error.None)
             {
                 data = "";
                 return ret;
@@ -523,21 +523,21 @@ namespace SakuraIO
             return ret;
         }
 
-        public byte Unlock()
+        public Error Unlock()
         {
             byte[] request = {0x53, 0x6B, 0x72, 0x61};
-            return ExecuteCommand(Commands.CMD_UNLOCK, request);
+            return ExecuteCommand(Command.Unlock, request);
         }
 
-        public byte UpdateFirmware()
+        public Error UpdateFirmware()
         {
-            return ExecuteCommand(Commands.CMD_UPDATE_FIRMWARE);
+            return ExecuteCommand(Command.UpdateFirmware);
         }
 
         public byte GetFirmwareUpdateStatus()
         {
             byte[] response;
-            if (ExecuteCommand(Commands.CMD_GET_UPDATE_FIRMWARE_STATUS, 1, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.GetUpdateFirmwareStatus, 1, out response) != Error.None)
             {
                 return 0xff;
             }
@@ -545,25 +545,25 @@ namespace SakuraIO
             return response[0];
         }
 
-        public byte Reset()
+        public Error Reset()
         {
-            return ExecuteCommand(Commands.CMD_SOFTWARE_RESET);
+            return ExecuteCommand(Command.SoftwareReset);
         }
 
-        public byte SetPowerSaveMode(byte mode)
+        public Error SetPowerSaveMode(PowerSaveMode mode)
         {
-            return ExecuteCommand(Commands.CMD_SET_POWER_SAVE_MODE, mode);
+            return ExecuteCommand(Command.SetPowerSaveMode, (byte)mode);
         }
 
-        public byte GetPowerSaveMode()
+        public PowerSaveMode GetPowerSaveMode()
         {
             byte[] response;
-            if (ExecuteCommand(Commands.CMD_GET_POWER_SAVE_MODE, 1, out response) != Commands.CMD_ERROR_NONE)
+            if (ExecuteCommand(Command.GetPowerSaveMode, 1, out response) != Error.None)
             {
-                return 0xff;
+                return PowerSaveMode.Error;
             }
 
-            return response[0];
+            return (PowerSaveMode)response[0];
         }
 
         #endregion
